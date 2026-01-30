@@ -32,7 +32,10 @@
   "train_pre_policy": True,
   "if_augment_obs": True,
   "intrinsic_reward_ratio": 0.4,
-  "zero_index": True
+  "zero_index": True,
+  "num_agents": 3,
+  "num_landmarks": 3,
+  "dual_target": False # for 2 intervened agents (1st and last)
 }
 
 # evaluate

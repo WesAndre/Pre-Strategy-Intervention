@@ -1,0 +1,26 @@
+# @package _global_
+alg:
+  ALG_NAME: "liir_iql"
+  TOTAL_TIMESTEPS: 2e6
+  NUM_ENVS: 8
+  NUM_STEPS: 256
+  BUFFER_SIZE: 5000
+  BUFFER_BATCH_SIZE: 32
+  HIDDEN_SIZE: 64
+  
+  # LIIR Specific Params
+  META_LR: 0.001           # Learning rate for the reward proxy
+  LIIR_COEFF: 0.01         # Scale of intrinsic reward
+  
+  LR: 0.005                # Agent learning rate
+  GAMMA: 0.99
+  EPS_START: 1.0
+  EPS_FINISH: 0.05
+  EPS_DECAY: 0.1
+  TARGET_UPDATE_INTERVAL: 200
+  MAX_GRAD_NORM: 10.0      # Clipping for stability
+  
+  ENV_NAME: "AugmentedMPE"
+  ENV_KWARGS:
+    train_pre_policy: False
+    zero_index: True

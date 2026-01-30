@@ -126,6 +126,7 @@ def make_train(config, env):
                 pre_policy_hidden_dim=config["PRE_POLICY_HIDDEN_DIM"],
                 node_feature_dim=config["NODE_FEATURE_DIM"],
                 if_augment_obs=config.get("IF_AUGMENT_OBS", True),
+                num_landmarks=config["ENV_KWARGS"]["num_landmarks"], # added for MPE dynamic agents
             )
 
         def create_agent(rng):

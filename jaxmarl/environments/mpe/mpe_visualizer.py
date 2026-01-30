@@ -11,13 +11,16 @@ class MPEVisualizer(object):
         env,
         state_seq: list,
         reward_seq=None,
+        highlight_agents=None, # list of agent indices to highlight their trails
+        highlight_landmarks=None, # list of landmark indices to highlight their trails
     ):
         self.env = env
 
         self.interval = 100
         self.state_seq = state_seq
         self.reward_seq = reward_seq
-        
+        self.highlight_agents = highlight_agents if highlight_agents is not None else []
+        self.highlight_landmarks = highlight_landmarks if highlight_landmarks is not None else []
         
         self.comm_active = not np.all(self.env.silent)
         print('Comm active? ', self.comm_active)
@@ -56,8 +59,28 @@ class MPEVisualizer(object):
         
         self.entity_artists = []
         for i in range(self.env.num_entities):
+            
+            is_agent = i < self.env.num_agents
+            entity_idx = i if is_agent else i - self.env.num_agents
+
+            is_highlighted = (is_agent and entity_idx in self.highlight_agents) or \
+                             (not is_agent and entity_idx in self.highlight_landmarks)
+            if is_highlighted:
+                face = np.array([255, 0, 0]) / 255  # red if intervened
+                edge = 'gold'
+                lw = 2
+            else:
+                face = np.array(self.env.colour[i]) / 255 # original color
+                edge = 'none'
+                lw = 0
+
             c = Circle(
-                state.p_pos[i], self.env.rad[i], color=np.array(self.env.colour[i]) / 255
+                state.p_pos[i],
+                self.env.rad[i],
+                facecolor=face,
+                edgecolor=edge,
+                linewidth=lw,
+                zorder=3 if is_highlighted else 2,
             )
             self.ax.add_patch(c)
             self.entity_artists.append(c)

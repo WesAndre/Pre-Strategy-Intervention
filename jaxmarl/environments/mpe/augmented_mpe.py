@@ -20,11 +20,13 @@ class State:
     step: int  # current step
 
     # last_intrinsic_reward: float
-    last_intrinsic_reward: chex.Array # Vector of shape (num_agents,), storing each agent's last-step intrinsic reward
+    last_intrinsic_reward: (
+        chex.Array
+    )  # Vector of shape (num_agents,), storing each agent's last-step intrinsic reward
 
-    goal: int = None  # index of target landmark, used in: SimpleSpeakerListenerMPE, SimpleReferenceMPE, SimplePushMPE, SimpleAdversaryMPE
-
-
+    goal: int = (
+        None  # index of target landmark, used in: SimpleSpeakerListenerMPE, SimpleReferenceMPE, SimplePushMPE, SimpleAdversaryMPE
+    )
 
 
 class SimpleMPE_v2(MultiAgentEnv):
@@ -45,6 +47,7 @@ class SimpleMPE_v2(MultiAgentEnv):
         train_pre_policy=True,
         all_agents_intrinsic=False,
         zero_index=True,
+        dual_target=False,  # For 2 intervened agents (1st and last)
         **kwargs,
     ):
         # Agent and entity constants
@@ -56,7 +59,7 @@ class SimpleMPE_v2(MultiAgentEnv):
         self.train_pre_policy = train_pre_policy
         self.all_agents_intrinsic = all_agents_intrinsic
         self.zero_index = zero_index
-
+        self.dual_target = dual_target
         # Setting, and sense checking, entity names and agent action spaces
         if agents is None:
             self.agents = [f"agent_{i}" for i in range(num_agents)]
@@ -261,7 +264,7 @@ class SimpleMPE_v2(MultiAgentEnv):
         # state = state.replace(last_intrinsic_reward=reward['agent_0'][1])
 
         all_intrinsics = jnp.array([reward[a][1] for a in self.agents])
-        state = state.replace(last_intrinsic_reward = all_intrinsics)
+        state = state.replace(last_intrinsic_reward=all_intrinsics)
 
         print(state.last_intrinsic_reward)
 
@@ -272,11 +275,10 @@ class SimpleMPE_v2(MultiAgentEnv):
 
         return obs, state, reward, dones, info
 
-
     def _get_leftmost_landmark(self, p_pos: jnp.ndarray):
-        index = jnp.argmin(p_pos[self.num_agents:, 0])
+        index = jnp.argmin(p_pos[self.num_agents :, 0])
         print("leftmost ", index)
-        leftmost_landmark_pos = p_pos[self.num_agents:][index]
+        leftmost_landmark_pos = p_pos[self.num_agents :][index]
         return leftmost_landmark_pos
 
     @partial(jax.jit, static_argnums=[0])
@@ -296,9 +298,11 @@ class SimpleMPE_v2(MultiAgentEnv):
             ]
         )
 
-        zero_landmark_pos = p_pos[self.num_agents:][0]  # index 0 among the landmarks
+        zero_landmark_pos = p_pos[self.num_agents :][0]  # index 0 among the landmarks
+        last_landmark_pos = p_pos[self.num_agents :][-1]  # index -1 among the landmarks
 
         if self.all_agents_intrinsic:
+
             @partial(jax.vmap, in_axes=(0,))
             def _intrinsic_init(aidx: int) -> float:
                 dist = jnp.linalg.norm(p_pos[aidx] - zero_landmark_pos)
@@ -308,11 +312,16 @@ class SimpleMPE_v2(MultiAgentEnv):
         elif self.train_pre_policy:
             # only agent_0
             dist0 = jnp.linalg.norm(p_pos[0] - zero_landmark_pos)
+            dist_last = jnp.linalg.norm(
+                p_pos[self.num_agents - 1] - last_landmark_pos
+            )  # for 2nd (last) agent
             init_intrinsic = jnp.zeros((self.num_agents,))
             init_intrinsic = init_intrinsic.at[0].set(-dist0)
+            init_intrinsic = init_intrinsic.at[-1].set(
+                -dist_last
+            )  # for 2nd (last) agent
         else:
             init_intrinsic = jnp.zeros((self.num_agents,))
-
 
         state = State(
             p_pos=p_pos,
@@ -530,13 +539,11 @@ class SimpleMPE_v2(MultiAgentEnv):
         return jax.lax.select(m, mr, br) * ~w
 
 
-
-
 class AugmentedMPE(SimpleMPE_v2):
     def __init__(
         self,
-        num_agents=3,
-        num_landmarks=3,
+        num_agents=3,  # CHANGE TO DIFF NUMBA
+        num_landmarks=3,  # CHANGE TO DIFF NUMBA
         local_ratio=0.5,
         action_type=DISCRETE_ACT,
         train_pre_policy=False,  # Add train_pre_policy as an argument
@@ -544,6 +551,7 @@ class AugmentedMPE(SimpleMPE_v2):
         if_augment_obs=False,
         all_agents_intrinsic=False,
         zero_index=True,
+        dual_target=False,  # For 2 intervened agents
         **kwargs,
     ):
         dim_c = 2  # NOTE follows code rather than docs
@@ -553,7 +561,7 @@ class AugmentedMPE(SimpleMPE_v2):
         landmarks = ["landmark {}".format(i) for i in range(num_landmarks)]
 
         observation_spaces = {
-            i: Box(-jnp.inf, jnp.inf, (4+(num_agents-1)*4+(num_landmarks*2),))
+            i: Box(-jnp.inf, jnp.inf, (4 + (num_agents - 1) * 4 + (num_landmarks * 2),))
             for i in agents
         }
 
@@ -579,6 +587,8 @@ class AugmentedMPE(SimpleMPE_v2):
             [jnp.full((num_agents), True), jnp.full((num_landmarks), False)]
         )
 
+        self.dual_target = dual_target
+
         super().__init__(
             num_agents=num_agents,
             agents=agents,
@@ -593,6 +603,7 @@ class AugmentedMPE(SimpleMPE_v2):
             train_pre_policy=train_pre_policy,
             all_agents_intrinsic=all_agents_intrinsic,
             zero_index=zero_index,
+            dual_target=dual_target,
             **kwargs,
         )
 
@@ -641,16 +652,31 @@ class AugmentedMPE(SimpleMPE_v2):
             if self.all_agents_intrinsic and self.if_augment_obs:
                 augment_feat = jnp.array([state.last_intrinsic_reward[i]])
 
-            elif self.train_pre_policy and self.if_augment_obs and i==0:
-                augment_feat = jnp.array([state.last_intrinsic_reward[i]])
+            # Support dual agents
+            elif self.train_pre_policy and self.if_augment_obs:
+                if self.dual_target:
+                    # to augment both agents at same time
+                    is_target = (i == 0) | (i == len(self.agents) - 1)
+
+                    augment_feat = jnp.where(
+                        is_target,
+                        jnp.array([state.last_intrinsic_reward[i]]),
+                        jnp.array([0.0]),
+                    )
+                else:
+                    # augments just agent 0
+                    augment_feat = (
+                        jnp.array([state.last_intrinsic_reward[i]])
+                        if i == 0
+                        else jnp.array([0.0])
+                    )
             else:
-                augment_feat = jnp.array([0.])
+                augment_feat = jnp.array([0.0])
 
             updated_obs = jnp.concatenate([state_obs, augment_feat], axis=0)
             augmented_obs[a] = updated_obs
 
         return augmented_obs
-
 
     def rewards(self, state: State) -> Dict[str, Tuple[float, float]]:
         @partial(jax.vmap, in_axes=(0, None))
@@ -677,24 +703,85 @@ class AugmentedMPE(SimpleMPE_v2):
         # Calculate the global reward
         global_rew = jnp.sum(jax.vmap(_land)(state.p_pos[self.num_agents :]))
 
+        # Intrinsic reward for agent 0 and last agent
+        if self.dual_target and self.train_pre_policy and self.zero_index:
+            chosen_landmark_pos_0 = state.p_pos[self.num_agents :][0]
+            last_landmark_pos = state.p_pos[self.num_agents :][-1]
+
+            dist_to_chosen_0 = jnp.linalg.norm(state.p_pos[0] - chosen_landmark_pos_0)
+            dist_to_chosen_last = jnp.linalg.norm(
+                state.p_pos[self.num_agents - 1] - last_landmark_pos
+            )
+
+            intrinsic_rew_0 = -dist_to_chosen_0
+            intrinsic_rew_last = -dist_to_chosen_last
+
+            rew = {
+                a: (
+                    _agent_rew(i, c) * self.local_ratio
+                    + global_rew * (1 - self.local_ratio),
+                    (
+                        intrinsic_rew_0
+                        if i == 0
+                        else (intrinsic_rew_last if i == self.num_agents - 1 else 0.0)
+                    ),
+                )
+                for i, a in enumerate(self.agents)
+            }
+            return rew
+
+        # single target agent case
+        elif self.train_pre_policy and self.zero_index:
+            chosen_landmark_pos = state.p_pos[self.num_agents :][0]
+
+            dist_to_chosen_0 = jnp.linalg.norm(state.p_pos[0] - chosen_landmark_pos)
+            intrinsic_rew_0 = -dist_to_chosen_0
+
+            rew = {
+                a: (
+                    _agent_rew(i, c) * self.local_ratio
+                    + global_rew * (1 - self.local_ratio),
+                    intrinsic_rew_0 if i == 0 else 0.0,
+                )
+                for i, a in enumerate(self.agents)
+            }
+            return rew
+
         def _agent_extrinsic(i: int):
-            return _agent_rew(i, c) * self.local_ratio + global_rew * (1 - self.local_ratio)
+            return _agent_rew(i, c) * self.local_ratio + global_rew * (
+                1 - self.local_ratio
+            )
 
         if self.all_agents_intrinsic and self.zero_index:
 
-            zero_landmark_pos = state.p_pos[self.num_agents:][0]
+            zero_landmark_pos = state.p_pos[self.num_agents :][0]
+            last_landmark_pos = state.p_pos[self.num_agents :][-1]
 
             @partial(jax.vmap, in_axes=(0,))
+            # to include 2 agents aswell
             def _intrinsic(aidx: int) -> float:
-                dist_ = jnp.linalg.norm(state.p_pos[aidx] - zero_landmark_pos)
+                target_landmark = jax.lax.select(
+                    aidx == 0,
+                    zero_landmark_pos,
+                    jax.lax.select(
+                        aidx == self.num_agents - 1,
+                        last_landmark_pos,
+                        zero_landmark_pos,
+                    ),
+                )
+
+                dist_ = jnp.linalg.norm(state.p_pos[aidx] - target_landmark)
                 return -dist_
 
             intrinsic_vals = _intrinsic(self.agent_range)
 
             rew = {
                 a: (
-                    _agent_rew(i, c) * self.local_ratio + global_rew * (1 - self.local_ratio),
-                    intrinsic_vals[i]   # Apply additional reward for agent 0
+                    _agent_rew(i, c) * self.local_ratio
+                    + global_rew * (1 - self.local_ratio),
+                    intrinsic_vals[
+                        i
+                    ],  # Apply additional reward for agent 0 (or last agent)
                 )
                 for i, a in enumerate(self.agents)
             }
@@ -702,14 +789,30 @@ class AugmentedMPE(SimpleMPE_v2):
 
         elif self.zero_index:
 
-            chosen_landmark_pos = state.p_pos[self.num_agents:][0]  # "leftmost" or index=0
-            dist_to_chosen = jnp.linalg.norm(state.p_pos[0] - chosen_landmark_pos)
-            additional_rew = -dist_to_chosen
+            chosen_landmark_pos = state.p_pos[self.num_agents :][
+                0
+            ]  # "leftmost" or index=0
+            last_landmark_pos = state.p_pos[self.num_agents :][
+                -1
+            ]  # target for (last) agent
+
+            dist_to_chosen_0 = jnp.linalg.norm(state.p_pos[0] - chosen_landmark_pos)
+            dist_to_chosen_last = jnp.linalg.norm(
+                state.p_pos[self.num_agents - 1] - last_landmark_pos
+            )
+
+            additional_rew_0 = -dist_to_chosen_0
+            additional_rew_last = -dist_to_chosen_last
 
             rew = {
                 a: (
-                    _agent_rew(i, c) * self.local_ratio + global_rew * (1 - self.local_ratio),
-                    additional_rew if i == 0 else 0.0 # Apply additional reward for agent 0
+                    _agent_rew(i, c) * self.local_ratio
+                    + global_rew * (1 - self.local_ratio),
+                    (
+                        additional_rew_0
+                        if i == 0
+                        else (additional_rew_last if i == len(self.agents) - 1 else 0.0)
+                    ),  # Apply additional reward for agent 0 and last agent
                 )
                 for i, a in enumerate(self.agents)
             }
@@ -720,7 +823,7 @@ class AugmentedMPE(SimpleMPE_v2):
             print("---------------")
             print("farthest landmark")
             print("---------------")
-            
+
             def min_dist_to_agents12(state: State, landmark_pos: chex.Array):
                 d1 = jnp.linalg.norm(landmark_pos - state.p_pos[1])
                 d2 = jnp.linalg.norm(landmark_pos - state.p_pos[2])
@@ -728,18 +831,29 @@ class AugmentedMPE(SimpleMPE_v2):
 
             # shape => (num_landmarks,)
             dist_array = jax.vmap(lambda lm: min_dist_to_agents12(state, lm))(
-                state.p_pos[self.num_agents:]
+                state.p_pos[self.num_agents :]
             )
             farthest_idx = jnp.argmax(dist_array)
-            chosen_landmark_pos = state.p_pos[self.num_agents:][farthest_idx]
+            chosen_landmark_pos = state.p_pos[self.num_agents :][farthest_idx]
+            last_landmark_pos = state.p_pos[self.num_agents :][-1]
 
-            dist_to_chosen = jnp.linalg.norm(state.p_pos[0] - chosen_landmark_pos)
-            additional_rew = -dist_to_chosen
+            dist_to_chosen_0 = jnp.linalg.norm(state.p_pos[0] - chosen_landmark_pos)
+            dist_to_chosen_last = jnp.linalg.norm(
+                state.p_pos[self.num_agents - 1] - last_landmark_pos
+            )
+
+            additional_rew_0 = -dist_to_chosen_0
+            additional_rew_last = -dist_to_chosen_last
 
             rew = {
                 a: (
-                    _agent_rew(i, c) * self.local_ratio + global_rew * (1 - self.local_ratio),
-                    additional_rew if i == 0 else 0.0 # Apply additional reward for agent 0
+                    _agent_rew(i, c) * self.local_ratio
+                    + global_rew * (1 - self.local_ratio),
+                    (
+                        additional_rew_0
+                        if i == 0
+                        else (additional_rew_last if i == self.num_agents - 1 else 0.0)
+                    ),  # Apply additional reward for agent 0 and last agent
                 )
                 for i, a in enumerate(self.agents)
             }

@@ -59,6 +59,7 @@ class IQLAgent(nn.Module):
     action_dim: int
     hidden_dim: int
     num_agents: int
+    num_landmarks: int # added for MPE dynamic agents
     num_proxy_agents: int
     init_scale: float
     pre_policy_output_dim: int
@@ -71,7 +72,10 @@ class IQLAgent(nn.Module):
 
         self.gnn = nn.vmap(End2EndGCN, in_axes=0, out_axes=0,
                            variable_axes={"params": 0},
-                           split_rngs={"params": 0})(node_feature_dim=self.node_feature_dim)
+                           split_rngs={"params": 0})(
+                            node_feature_dim=self.node_feature_dim, 
+                            num_agents=self.num_agents, 
+                            num_landmarks=self.num_landmarks)
 
         self.agent_rnn=nn.vmap(AgentRNN, in_axes=0, out_axes=0, variable_axes={"params": 0}, split_rngs={"params": 0})(
              self.hidden_dim, self.init_scale
@@ -85,8 +89,11 @@ class IQLAgent(nn.Module):
             self.init_scale, self.if_augment_obs,
         )
 
+        # To make it dynamic
+        num_nodes = 2 + self.num_landmarks + (self.num_agents - 1)
+        gnn_obs_dim = 2 * num_nodes  # each node has position and velocity
         self.mlp_gnn = nn.vmap(nn.Dense, in_axes=0, out_axes=0, variable_axes={"params": 0}, split_rngs={"params": 0})(
-            features=14, kernel_init=orthogonal(self.init_scale)
+            features=gnn_obs_dim, kernel_init=orthogonal(self.init_scale)
         )
 
         self.q_value_mlp = nn.vmap(nn.Dense, in_axes=0, out_axes=0, variable_axes={"params": 0}, split_rngs={"params": 0})(

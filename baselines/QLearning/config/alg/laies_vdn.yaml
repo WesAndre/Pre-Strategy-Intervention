@@ -1,0 +1,29 @@
+# @package _global_
+alg:
+  ALG_NAME: "laies_vdn"
+  TOTAL_TIMESTEPS: 2e6
+  NUM_ENVS: 8
+  NUM_STEPS: 26
+  BUFFER_SIZE: 5000
+  BUFFER_BATCH_SIZE: 32
+  HIDDEN_SIZE: 64
+  
+  # LAIES Specific Params
+  LAIES_COEFF: 0.1
+  CURIOSITY_SCALE: 0.05
+  RND_LEARNING_RATE: 1e-4
+  
+  LR: 0.005
+  GAMMA: 0.99
+  EPS_START: 1.0
+  EPS_FINISH: 0.05
+  EPS_DECAY: 0.1
+  TARGET_UPDATE_INTERVAL: 200
+  TAU: 1.0  # Hard update for target network
+  
+  ENV_NAME: "AugmentedMPE"
+  ENV_KWARGS:
+    train_pre_policy: False
+    zero_index: True
+  
+  RUN_BASELINE: False

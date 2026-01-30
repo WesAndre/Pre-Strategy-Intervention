@@ -7,7 +7,8 @@ from typing import Sequence, NamedTuple, Any, Dict
 import distrax
 
 from agent.pre_policy_module.pre_policy_network import PrePolicyMLP
-from agent.gnn_module.hanabi_gnn import End2EndGCN
+from agent.gnn_module.hanabi_gnn import End2EndGCN as End2EndGCN2
+from agent.gnn_module.hanabi_5_player_gnn import End2EndGCN as End2EndGCN5
 
 
 class ActorCritic(nn.Module):
@@ -115,7 +116,14 @@ class PrePolicyIPPO(nn.Module):
                                   variable_axes={"params": 0},
                                   split_rngs={"params": 0})(config=self.config)
 
-        self.gnn = nn.vmap(End2EndGCN, in_axes=0, out_axes=0,
+        if self.num_agents == 5:
+            gnn_module = End2EndGCN5
+        elif self.num_agents == 2:
+            gnn_module = End2EndGCN2
+        else:
+            raise ValueError(f"GNN module for {self.num_agents} agents is not implemented.")
+
+        self.gnn = nn.vmap(gnn_module, in_axes=0, out_axes=0,
                            variable_axes={"params": 0},
                            split_rngs={"params": 0})(config=self.config)
 
@@ -175,10 +183,16 @@ class GlobalPrePolicyIPPO(nn.Module):
                                   variable_axes={"params": 0},
                                   split_rngs={"params": 0})(config=self.config)
 
-        self.gnn = nn.vmap(End2EndGCN, in_axes=0, out_axes=0,
+        if self.num_agents == 5:
+            gnn_module = End2EndGCN5
+        elif self.num_agents == 2:
+            gnn_module = End2EndGCN2
+        else:
+            raise ValueError(f"GNN module for {self.num_agents} agents is not implemented.")
+
+        self.gnn = nn.vmap(gnn_module, in_axes=0, out_axes=0,
                            variable_axes={"params": 0},
                            split_rngs={"params": 0})(config=self.config)
-
 
         self.pre_policy_network = nn.vmap(PrePolicyMLP, in_axes=0, out_axes=0,
                                           variable_axes={"params": 0},

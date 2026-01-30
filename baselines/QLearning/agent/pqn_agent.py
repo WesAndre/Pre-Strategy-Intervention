@@ -4,6 +4,8 @@ from typing import NamedTuple, Dict, Union, Any, Tuple, Optional, List
 from agent.pre_policy_module.pre_policy_network import PrePolicyMLP
 from agent.gnn_module.hanabi_gnn import End2EndGCN
 from agent.gnn_module.hanabi_4_player_gnn import End2EndGCN4Players
+from agent.gnn_module.hanabi_5_player_gnn import End2EndGCN5Players
+
 
 
 
@@ -74,6 +76,10 @@ class PQNAgent(nn.Module):
                            split_rngs={"params": 0})(config=self.config)
         elif self.num_agents == 4:
             self.gnn = nn.vmap(End2EndGCN4Players, in_axes=0, out_axes=0,
+                               variable_axes={"params": 0},
+                               split_rngs={"params": 0})(config=self.config)
+        elif self.num_agents == 5:
+            self.gnn = nn.vmap(End2EndGCN5Players, in_axes=0, out_axes=0,
                                variable_axes={"params": 0},
                                split_rngs={"params": 0})(config=self.config)
         else:
