@@ -49,8 +49,60 @@ This project requires Python 3.10 and we recommend `conda` for environment manag
     pip install -e .[algs]
     ```
 
-## Running Experiments
 
+## Running Extensions
+
+Here are commands on how to run each of the four extensions.
+
+# 5-agent Hanabi
+* **PSI:**
+    ```shell
+    python baselines/IPPO/ippo_pre.py +alg=ippo alg.ENV_KWARGS.num_agents=5
+    ```
+* **IR:**
+    ```shell
+    python baselines/IPPO/ippo_pre.py +alg=intrinsic_reward_ippo alg.ENV_KWARGS.num_agents=5
+    ```
+
+# X-agent MPE
+Replace X in the following command with the amount of agents
+
+* **PSI:**
+    ```shell
+    python baselines/QLearning/vdn_pre.py +alg=vdn ++alg.ENV_KWARGS.num_agents=X ++alg.ENV_KWARGS.num_landmarks=X ++alg.ENV_KWARGS.dual_target=True
+    ```
+* **IR:**
+    ```shell
+    python baselines/QLearning/vdn_pre.py +alg=intrinsic_reward_vdn ++alg.ENV_KWARGS.num_agents=X ++alg.ENV_KWARGS.num_landmarks=X ++alg.ENV_KWARGS.dual_target=True
+    ```
+
+So, for example, running PSI with 50 agents would need the following command:
+
+    python baselines/QLearning/vdn_pre.py +alg=vdn ++alg.ENV_KWARGS.num_agents=50 ++alg.ENV_KWARGS.num_landmarks=50 ++alg.ENV_KWARGS.dual_target=True
+
+# Extrinsic vs Intrinsic return ratio in loss function
+To change the weight given to the intrinsic return alter the X in the following command:
+
+* **IR:**
+    ```shell
+    python baselines/IPPO/ippo_pre.py +alg=intrinsic_reward_ippo alg.ENV_KWARGS.num_agents=X
+    ```
+The default value is 0.035. In our experiments we used: 0.0, 0.035, 0.075 and 0.2
+
+# Longer training
+In this experiment we doubled the number of training steps. To run this use the following commands.
+
+* **PSI:**
+    ```shell
+    python baselines/IPPO/ippo_pre.py +alg=ippo alg.TOTAL_TIMESTEPS=2e9
+    ```
+* **IR:**
+    ```shell
+    python baselines/IPPO/ippo_pre.py +alg=intrinsic_reward_ippo alg.TOTAL_TIMESTEPS=2e9
+    ```
+
+From this point the rest of the readme follows the readme of the forked github repo:
+## Running Experiments
 To reproduce the main results from our paper, run our **Pre-Strategy Intervention** method against the **Standard MARL** and **Intrinsic Reward** baselines described below. All experiments are managed via command-line arguments using Hydra.
 
 Our experiments are organized around three main conditions which can be applied to most algorithms. You can select the condition by modifying the Hydra configuration name (`+alg=...`).
