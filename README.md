@@ -69,17 +69,16 @@ Replace X in the following command with the amount of agents
 
 * **PSI:**
     ```shell
-    python baselines/QLearning/vdn_pre.py +alg=vdn ++alg.ENV_KWARGS.num_agents=X ++alg.ENV_KWARGS.num_landmarks=X ++alg.ENV_KWARGS.dual_target=True
+    python baselines/QLearning/vdn_pre.py +alg=vdn ++alg.ENV_KWARGS.num_agents=X ++alg.ENV_KWARGS.num_landmarks=X
     ```
 * **IR:**
     ```shell
-    python baselines/QLearning/vdn_pre.py +alg=intrinsic_reward_vdn ++alg.ENV_KWARGS.num_agents=X ++alg.ENV_KWARGS.num_landmarks=X ++alg.ENV_KWARGS.dual_target=True
+    python baselines/QLearning/vdn_pre.py +alg=intrinsic_reward_vdn ++alg.ENV_KWARGS.num_agents=X ++alg.ENV_KWARGS.num_landmarks=X 
     ```
 
 So, for example, running PSI with 50 agents would need the following command:
 
-    python baselines/QLearning/vdn_pre.py +alg=vdn ++alg.ENV_KWARGS.num_agents=50 ++alg.ENV_KWARGS.num_landmarks=50 ++alg.ENV_KWARGS.dual_target=True
-
+    python baselines/QLearning/vdn_pre.py +alg=vdn ++alg.ENV_KWARGS.num_agents=50 ++alg.ENV_KWARGS.num_landmarks=50 
 # Extrinsic vs Intrinsic return ratio in loss function
 To change the weight given to the intrinsic return alter the X in the following command:
 
