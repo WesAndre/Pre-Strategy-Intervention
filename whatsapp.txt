@@ -1,1 +1,0 @@
-sbatch /home/scur0073/Pre-Strategy-Intervention/jobs/hanabi/local/pqn-vdn5.job
